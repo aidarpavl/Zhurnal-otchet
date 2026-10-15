@@ -12,7 +12,6 @@ st.set_page_config(page_title="Журнал", page_icon="📘", layout="wide")
 # ВСПОМОГАТЕЛЬНОЕ
 # ============================================================
 def to_mark(v):
-    """'4' -> 4, 'а'/'н' -> 'а', пусто/мусор -> None."""
     s = str(v).strip().lower()
     if s in ("а", "н"):
         return "а"
@@ -30,7 +29,6 @@ def to_mark(v):
 # ============================================================
 @st.cache_data(show_spinner=False)
 def read_journal(file_bytes: bytes):
-    """Возвращает (df, teacher_name, info)."""
     info = []
     xls = pd.ExcelFile(io.BytesIO(file_bytes))
     info.append(f"Листов в файле: {len(xls.sheet_names)} — {xls.sheet_names}")
@@ -48,7 +46,6 @@ def read_journal(file_bytes: bytes):
             info.append(f"Лист «{sh}»: пустой")
             continue
 
-        # Ищем строку заголовка
         header_row = None
         for i in range(min(len(raw), 10)):
             cell = str(raw.iloc[i, 0]).lower()
@@ -57,7 +54,7 @@ def read_journal(file_bytes: bytes):
                 break
 
         if header_row is None:
-            info.append(f"Лист «{sh}»: заголовок журнала не найден (первая ячейка: «{raw.iloc[0, 0]}»)")
+            info.append(f"Лист «{sh}»: заголовок журнала не найден")
             continue
 
         header_dates = raw.iloc[header_row].tolist()[1:]
@@ -99,7 +96,6 @@ def read_journal(file_bytes: bytes):
     if not journal_frames:
         return pd.DataFrame(), "", info
 
-    # Объединяем всех учеников
     merged = {}
     for block in journal_frames:
         for row in block:
@@ -119,7 +115,6 @@ def read_journal(file_bytes: bytes):
 
     df = pd.DataFrame(records)
 
-    # ФИО учителя с листа № 2
     teacher_name = ""
     if len(xls.sheet_names) >= 2:
         second = xls.sheet_names[1]
@@ -136,10 +131,8 @@ def read_journal(file_bytes: bytes):
                         s,
                     ):
                         teacher_name = s
-                        info.append(f"ФИО учителя: «{s}» (лист «{second}») ✓")
+                        info.append(f"ФИО учителя: «{s}» ✓")
                         break
-            if not teacher_name:
-                info.append(f"ФИО учителя не найдено на листе «{second}»")
         except Exception as e:
             info.append(f"Ошибка чтения листа «{second}»: {e}")
 
@@ -158,19 +151,15 @@ def analyze_student(row, date_cols):
             misses += 1
         elif isinstance(v, int):
             marks.append(v)
-
     avg = round(sum(marks) / len(marks), 2) if marks else 0.0
     total = len(marks)
     quality = sum(1 for m in marks if m >= 7)
     progress = sum(1 for m in marks if m >= 4)
-
     return {
-        "avg": avg,
-        "count": total,
+        "avg": avg, "count": total,
         "min": min(marks) if marks else 0,
         "max": max(marks) if marks else 0,
-        "misses": misses,
-        "marks": marks,
+        "misses": misses, "marks": marks,
         "quality_pct": round(quality / total * 100, 1) if total else 0.0,
         "progress_pct": round(progress / total * 100, 1) if total else 0.0,
     }
@@ -239,7 +228,6 @@ st.markdown(
 
 st.title("📘 Журнал — Алгебра — 7 Ә — 1 четверть")
 
-# ---------- ЗАГРУЗКА EXCEL ----------
 st.header("1. Загрузите Excel-файл журнала")
 st.caption(
     "Оценки — с листов «Алгебра» / «Алгебра (2)». "
@@ -247,58 +235,66 @@ st.caption(
     "Все листы с журналом объединяются."
 )
 
-uploaded = st.file_uploader("Excel (.xlsx)", type=["xlsx", "xls"])
-
-if uploaded is not None:
-    # --- Диагностика загрузки ---
-    st.info(
-        f"📦 **Файл:** `{uploaded.name}`  \n"
-        f"📏 **Размер:** {round(uploaded.size / 1024, 1)} КБ  \n"
-        f"📎 **MIME:** `{uploaded.type}`"
-    )
-
-    with st.spinner("Читаем Excel…"):
-        try:
-            data = uploaded.read()
-            st.write(f"✅ Прочитано байт: **{len(data)}**")
-
-            df, teacher_name, info = read_journal(data)
-
-        except Exception as e:
-            st.error(f"❌ **{type(e).__name__}:** {e}")
-            st.code(traceback.format_exc())
-            df, teacher_name, info = pd.DataFrame(), "", []
-
-    with st.expander("🩺 Диагностика чтения Excel", expanded=True):
-        if info:
-            for line in info:
-                st.text(line)
-        else:
-            st.text("(нет данных — вероятно, ошибка до входа в парсер)")
-
-    if df.empty:
-        st.warning(
-            "⚠ Данные журнала не найдены. Возможные причины:\n"
-            "1. В первой колонке нет слова «Оқушының» / «Ученик» / «ФИО».\n"
-            "2. Файл повреждён или защищён паролем.\n"
-            "3. Файл пустой.\n"
-            "Смотрите диагностику выше."
-        )
-    else:
-        st.session_state["df"] = df
-        st.session_state["teacher_name"] = teacher_name or "Жанал Серикхан"
+# ---------- Кнопка сброса, если файл уже загружен ----------
+if "df" in st.session_state and not st.session_state["df"].empty:
+    col_a, col_b = st.columns([3, 1])
+    with col_b:
+        if st.button("🔄 Загрузить другой файл", use_container_width=True):
+            for k in ["df", "teacher_name", "info"]:
+                st.session_state.pop(k, None)
+            st.rerun()
+    with col_a:
         st.success(
-            f"✅ Загружено учеников: {len(df)}, дат: {len(df.columns) - 1}, "
-            f"учитель: {st.session_state['teacher_name']}."
+            f"✅ Файл загружен. Учеников: {len(st.session_state['df'])}, "
+            f"дат: {len(st.session_state['df'].columns) - 1}."
         )
-        st.rerun()
 
+# ---------- Загрузчик (показываем, только если файла ещё нет) ----------
 if "df" not in st.session_state or st.session_state["df"].empty:
-    st.info("Загрузите Excel, чтобы начать анализ.")
-    st.stop()
+    uploaded = st.file_uploader("Excel (.xlsx)", type=["xlsx", "xls"])
 
+    if uploaded is not None:
+        st.info(
+            f"📦 **Файл:** `{uploaded.name}`  \n"
+            f"📏 **Размер:** {round(uploaded.size / 1024, 1)} КБ"
+        )
+        with st.spinner("Читаем Excel…"):
+            try:
+                data = uploaded.read()
+                df_new, teacher_new, info_new = read_journal(data)
+            except Exception as e:
+                st.error(f"❌ **{type(e).__name__}:** {e}")
+                st.code(traceback.format_exc())
+                df_new, teacher_new, info_new = pd.DataFrame(), "", []
+
+        with st.expander("🩺 Диагностика чтения Excel", expanded=True):
+            for line in (info_new or ["(нет данных)"]):
+                st.text(line)
+
+        if df_new.empty:
+            st.warning(
+                "⚠ Данные журнала не найдены. Проверьте, что в первой колонке "
+                "листа «Алгебра» есть слово «Оқушының» / «Ученик» / «ФИО»."
+            )
+        else:
+            st.session_state["df"] = df_new
+            st.session_state["teacher_name"] = teacher_new or "Жанал Серикхан"
+            st.session_state["info"] = info_new
+            st.rerun()
+    else:
+        st.info("Загрузите Excel, чтобы начать анализ.")
+        st.stop()
+
+# ============================================================
+# ОСНОВНОЙ АНАЛИЗ — уже после успешной загрузки
+# ============================================================
 df = st.session_state["df"]
 date_cols = [c for c in df.columns if c != "Ученик"]
+
+# ---------- Диагностику показываем по запросу ----------
+with st.expander("🩺 Что прочитано из Excel"):
+    for line in st.session_state.get("info", []):
+        st.text(line)
 
 # ============================================================
 # ТОП ЛУЧШИХ И ОТСТАЮЩИХ
@@ -353,7 +349,7 @@ st.caption("«а» — отсутствовал. Оценки — 1–10.")
 st.dataframe(df, use_container_width=True)
 
 # ============================================================
-# ГРАФИК ПО УЧЕНИКУ
+# ГРАФИК
 # ============================================================
 st.header("5. График развития выбранного ученика")
 student_name = st.selectbox("Ученик", df["Ученик"].tolist())
@@ -391,7 +387,6 @@ fig.update_layout(
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# Плашки с процентами
 q_pct = a["quality_pct"]
 p_pct = a["progress_pct"]
 st.markdown(
