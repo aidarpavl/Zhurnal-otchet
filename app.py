@@ -1,5 +1,6 @@
 import io
 import re
+import traceback
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
@@ -10,24 +11,12 @@ st.set_page_config(page_title="Журнал", page_icon="📘", layout="wide")
 # ============================================================
 # ВСПОМОГАТЕЛЬНОЕ
 # ============================================================
-def is_mark(v) -> bool:
-    """Проверяет, является ли значение оценкой 1–10."""
-    s = str(v).strip().lower()
-    if s in ("а", "н", ""):
-        return False
-    try:
-        n = int(float(s))
-        return 1 <= n <= 10
-    except Exception:
-        return False
-
-
 def to_mark(v):
-    """Преобразует значение в int или 'а' (отсутствовал) или None."""
+    """'4' -> 4, 'а'/'н' -> 'а', пусто/мусор -> None."""
     s = str(v).strip().lower()
     if s in ("а", "н"):
         return "а"
-    if not s:
+    if not s or s in ("nan", "none"):
         return None
     try:
         n = int(float(s))
@@ -41,30 +30,25 @@ def to_mark(v):
 # ============================================================
 @st.cache_data(show_spinner=False)
 def read_journal(file_bytes: bytes):
-    """
-    Читает все листы Excel, ищет листы с журналом (первый столбец — ФИО)
-    и склеивает их по вертикали.
-    Дополнительно читает ФИО учителя с листа № 2 (первая строка).
-    Возвращает: (df, teacher_name, sheet_info)
-    """
+    """Возвращает (df, teacher_name, info)."""
+    info = []
     xls = pd.ExcelFile(io.BytesIO(file_bytes))
-    sheet_names = xls.sheet_names
+    info.append(f"Листов в файле: {len(xls.sheet_names)} — {xls.sheet_names}")
 
     journal_frames = []
-    sheet_info = []
 
-    for sh in sheet_names:
+    for sh in xls.sheet_names:
         try:
             raw = pd.read_excel(xls, sheet_name=sh, header=None)
         except Exception as e:
-            sheet_info.append(f"Лист «{sh}»: ошибка чтения ({e})")
+            info.append(f"Лист «{sh}»: ОШИБКА чтения — {type(e).__name__}: {e}")
             continue
 
         if raw.empty:
-            sheet_info.append(f"Лист «{sh}»: пустой")
+            info.append(f"Лист «{sh}»: пустой")
             continue
 
-        # Ищем строку заголовка: где в первой ячейке есть "Оқушының"/"тегі"/"Ученик"
+        # Ищем строку заголовка
         header_row = None
         for i in range(min(len(raw), 10)):
             cell = str(raw.iloc[i, 0]).lower()
@@ -73,7 +57,7 @@ def read_journal(file_bytes: bytes):
                 break
 
         if header_row is None:
-            sheet_info.append(f"Лист «{sh}»: не найден заголовок журнала")
+            info.append(f"Лист «{sh}»: заголовок журнала не найден (первая ячейка: «{raw.iloc[0, 0]}»)")
             continue
 
         header_dates = raw.iloc[header_row].tolist()[1:]
@@ -81,9 +65,7 @@ def read_journal(file_bytes: bytes):
 
         def looks_like_name(v):
             s = str(v).strip()
-            if not s or s.lower() in ("nan", "none"):
-                return False
-            if len(s) < 3:
+            if not s or s.lower() in ("nan", "none") or len(s) < 3:
                 return False
             if not re.search(r"[А-Яа-яӘәҒғҚқҢңӨөҰұҮүҺһІі]", s):
                 return False
@@ -94,7 +76,7 @@ def read_journal(file_bytes: bytes):
         data = data[data.iloc[:, 0].apply(looks_like_name)]
 
         if data.empty:
-            sheet_info.append(f"Лист «{sh}»: нет учеников")
+            info.append(f"Лист «{sh}»: строки с ФИО не найдены")
             continue
 
         rows = []
@@ -112,12 +94,12 @@ def read_journal(file_bytes: bytes):
             rows.append({"Ученик": name, "marks": marks})
 
         journal_frames.append(rows)
-        sheet_info.append(f"Лист «{sh}»: учеников — {len(rows)}, столбцов‑дат — {len(header_dates)}")
+        info.append(f"Лист «{sh}»: учеников — {len(rows)}, дат — {len(header_dates)} ✓")
 
     if not journal_frames:
-        return pd.DataFrame(), "", sheet_info
+        return pd.DataFrame(), "", info
 
-    # Склеиваем всех учеников по имени
+    # Объединяем всех учеников
     merged = {}
     for block in journal_frames:
         for row in block:
@@ -126,7 +108,7 @@ def read_journal(file_bytes: bytes):
                 merged[name] = {}
             merged[name].update(row["marks"])
 
-    all_dates = sorted({d for marks in merged.values() for d in marks.keys()})
+    all_dates = sorted({d for m in merged.values() for d in m.keys()})
 
     records = []
     for name, marks in merged.items():
@@ -137,12 +119,12 @@ def read_journal(file_bytes: bytes):
 
     df = pd.DataFrame(records)
 
-    # ---------- ФИО учителя с листа № 2 ----------
+    # ФИО учителя с листа № 2
     teacher_name = ""
-    if len(sheet_names) >= 2:
-        second_sheet = sheet_names[1]
+    if len(xls.sheet_names) >= 2:
+        second = xls.sheet_names[1]
         try:
-            raw2 = pd.read_excel(xls, sheet_name=second_sheet, header=None, nrows=3)
+            raw2 = pd.read_excel(xls, sheet_name=second, header=None, nrows=3)
             if not raw2.empty:
                 for cell in raw2.iloc[0].tolist():
                     s = str(cell).strip()
@@ -154,23 +136,22 @@ def read_journal(file_bytes: bytes):
                         s,
                     ):
                         teacher_name = s
-                        sheet_info.append(f"ФИО учителя найдено на листе «{second_sheet}»: {s}")
+                        info.append(f"ФИО учителя: «{s}» (лист «{second}») ✓")
                         break
             if not teacher_name:
-                sheet_info.append(f"ФИО учителя не найдено в первой строке листа «{second_sheet}».")
+                info.append(f"ФИО учителя не найдено на листе «{second}»")
         except Exception as e:
-            sheet_info.append(f"Не удалось прочитать лист «{second_sheet}»: {e}")
+            info.append(f"Ошибка чтения листа «{second}»: {e}")
 
-    return df, teacher_name, sheet_info
+    info.append(f"Итог: учеников — {len(df)}, дат — {len(all_dates)}")
+    return df, teacher_name, info
 
 
 # ============================================================
 # АНАЛИЗ
 # ============================================================
 def analyze_student(row, date_cols):
-    """Возвращает avg, count, min, max, misses, marks, quality_pct, progress_pct."""
-    marks = []
-    misses = 0
+    marks, misses = [], 0
     for d in date_cols:
         v = row.get(d, "")
         if v == "а":
@@ -180,14 +161,8 @@ def analyze_student(row, date_cols):
 
     avg = round(sum(marks) / len(marks), 2) if marks else 0.0
     total = len(marks)
-
-    # Білім сапасы — доля оценок 7–10
     quality = sum(1 for m in marks if m >= 7)
-    quality_pct = round(quality / total * 100, 1) if total else 0.0
-
-    # Үлгерім — доля положительных оценок (>= 4)
     progress = sum(1 for m in marks if m >= 4)
-    progress_pct = round(progress / total * 100, 1) if total else 0.0
 
     return {
         "avg": avg,
@@ -196,8 +171,8 @@ def analyze_student(row, date_cols):
         "max": max(marks) if marks else 0,
         "misses": misses,
         "marks": marks,
-        "quality_pct": quality_pct,
-        "progress_pct": progress_pct,
+        "quality_pct": round(quality / total * 100, 1) if total else 0.0,
+        "progress_pct": round(progress / total * 100, 1) if total else 0.0,
     }
 
 
@@ -225,31 +200,19 @@ def recommendations_for(row, date_cols):
     a = analyze_student(row, date_cols)
     recs = []
     if a["count"] == 0:
-        recs.append("⚠ Нет ни одной оценки. Уточните причину отсутствия.")
+        recs.append("⚠ Нет ни одной оценки.")
         return recs
     if a["avg"] < 5:
-        recs.append(
-            f"📉 Средний балл {a['avg']:.2f} — ниже порога. "
-            f"Рекомендуется повторить текущие темы и выполнить дополнительные задания."
-        )
+        recs.append(f"📉 Средний балл {a['avg']:.2f} — ниже порога.")
     elif a["avg"] < 7:
-        recs.append(
-            f"📊 Средний балл {a['avg']:.2f} — удовлетворительный. "
-            f"Стоит усилить работу над темами с низкими оценками."
-        )
+        recs.append(f"📊 Средний балл {a['avg']:.2f} — удовлетворительный.")
     if a["misses"] >= 3:
-        recs.append(
-            f"🩺 Пропущено занятий: {a['misses']}. "
-            f"Необходимо отработать пропущенные темы по учебнику и ответить на вопросы."
-        )
+        recs.append(f"🩺 Пропущено занятий: {a['misses']}.")
     low = [m for m in a["marks"] if m <= 5]
     if low:
-        recs.append(
-            f"🔻 Низких оценок (≤5): {len(low)}. "
-            f"Рекомендуется повторить материал и сдать задолженности."
-        )
+        recs.append(f"🔻 Низких оценок (≤5): {len(low)}.")
     if not recs:
-        recs.append("✅ Ученик показывает стабильные результаты. Продолжайте в том же духе!")
+        recs.append("✅ Ученик показывает стабильные результаты.")
     return recs
 
 
@@ -279,32 +242,55 @@ st.title("📘 Журнал — Алгебра — 7 Ә — 1 четверть")
 # ---------- ЗАГРУЗКА EXCEL ----------
 st.header("1. Загрузите Excel-файл журнала")
 st.caption(
-    "Подойдёт файл BilimClass с листами «Алгебра», «Алгебра (2)» и т.п. "
-    "Все листы с журналом объединяются. ФИО учителя берётся с листа 2."
+    "Оценки — с листов «Алгебра» / «Алгебра (2)». "
+    "ФИО учителя — с листа 2. "
+    "Все листы с журналом объединяются."
 )
-uploaded = st.file_uploader("Excel (.xlsx)", type=["xlsx"])
+
+uploaded = st.file_uploader("Excel (.xlsx)", type=["xlsx", "xls"])
 
 if uploaded is not None:
-    st.write(f"Размер файла: {round(uploaded.size / 1024, 1)} КБ")
+    # --- Диагностика загрузки ---
+    st.info(
+        f"📦 **Файл:** `{uploaded.name}`  \n"
+        f"📏 **Размер:** {round(uploaded.size / 1024, 1)} КБ  \n"
+        f"📎 **MIME:** `{uploaded.type}`"
+    )
+
     with st.spinner("Читаем Excel…"):
         try:
-            df, teacher_name, info = read_journal(uploaded.read())
+            data = uploaded.read()
+            st.write(f"✅ Прочитано байт: **{len(data)}**")
+
+            df, teacher_name, info = read_journal(data)
+
         except Exception as e:
-            import traceback
-            st.error(f"Ошибка чтения: {type(e).__name__}: {e}")
+            st.error(f"❌ **{type(e).__name__}:** {e}")
             st.code(traceback.format_exc())
             df, teacher_name, info = pd.DataFrame(), "", []
 
-    with st.expander("🩺 Что прочитано из Excel"):
-        for line in info:
-            st.text(line)
+    with st.expander("🩺 Диагностика чтения Excel", expanded=True):
+        if info:
+            for line in info:
+                st.text(line)
+        else:
+            st.text("(нет данных — вероятно, ошибка до входа в парсер)")
 
     if df.empty:
-        st.warning("⚠ Не удалось найти данные журнала. Проверьте, что в файле есть лист с ФИО учеников.")
+        st.warning(
+            "⚠ Данные журнала не найдены. Возможные причины:\n"
+            "1. В первой колонке нет слова «Оқушының» / «Ученик» / «ФИО».\n"
+            "2. Файл повреждён или защищён паролем.\n"
+            "3. Файл пустой.\n"
+            "Смотрите диагностику выше."
+        )
     else:
         st.session_state["df"] = df
         st.session_state["teacher_name"] = teacher_name or "Жанал Серикхан"
-        st.success(f"✅ Загружено учеников: {len(df)}. Столбцов (дат): {len(df.columns) - 1}.")
+        st.success(
+            f"✅ Загружено учеников: {len(df)}, дат: {len(df.columns) - 1}, "
+            f"учитель: {st.session_state['teacher_name']}."
+        )
         st.rerun()
 
 if "df" not in st.session_state or st.session_state["df"].empty:
@@ -315,7 +301,7 @@ df = st.session_state["df"]
 date_cols = [c for c in df.columns if c != "Ученик"]
 
 # ============================================================
-# ТОП ЛУЧШИХ И ХУДШИХ
+# ТОП ЛУЧШИХ И ОТСТАЮЩИХ
 # ============================================================
 st.header("2. Топ лучших и топ отстающих")
 best = top_best(df, date_cols, 3)
@@ -339,7 +325,7 @@ with c2:
         st.info("Нет данных")
 
 # ============================================================
-# СВОДКА ПО ВСЕМ УЧЕНИКАМ
+# СВОДКА
 # ============================================================
 st.header("3. Сводка по всем ученикам")
 summary = []
@@ -360,10 +346,10 @@ summary_df = pd.DataFrame(summary).sort_values("Средний балл", ascend
 st.dataframe(summary_df, use_container_width=True)
 
 # ============================================================
-# ВСЕ ОЦЕНКИ УЧЕНИКОВ
+# ВСЕ ОЦЕНКИ
 # ============================================================
 st.header("4. Все оценки учеников по датам")
-st.caption("Показаны все оценки, которые есть в Excel. «а» — отсутствовал.")
+st.caption("«а» — отсутствовал. Оценки — 1–10.")
 st.dataframe(df, use_container_width=True)
 
 # ============================================================
@@ -374,7 +360,6 @@ student_name = st.selectbox("Ученик", df["Ученик"].tolist())
 row = df[df["Ученик"] == student_name].iloc[0]
 a = analyze_student(row, date_cols)
 
-# --- График ---
 y_vals, colors, x_vals = [], [], []
 for d in date_cols:
     v = row.get(d, "")
@@ -406,7 +391,7 @@ fig.update_layout(
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# --- Плашки с процентами ---
+# Плашки с процентами
 q_pct = a["quality_pct"]
 p_pct = a["progress_pct"]
 st.markdown(
@@ -457,13 +442,9 @@ st.header("7. Экспорт и печать")
 def build_excel():
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        # Лист 1 — все оценки
         df.to_excel(writer, sheet_name="Все оценки", index=False)
-
-        # Лист 2 — сводка (уже содержит «Білім сапасы %» и «Үлгерім %»)
         summary_df.to_excel(writer, sheet_name="Сводка", index=False)
 
-        # Лист 3 — Топ
         n = max(len(best), len(worst), 1)
 
         def pad(lst, size):
@@ -479,7 +460,6 @@ def build_excel():
         })
         top_df.to_excel(writer, sheet_name="Топ", index=False)
 
-        # Лист 4 — рекомендации
         rec_rows = []
         for _, r in df.iterrows():
             for rec in recommendations_for(r, date_cols):
@@ -488,7 +468,6 @@ def build_excel():
             rec_rows = [{"Ученик": "—", "Рекомендация": "Нет данных"}]
         pd.DataFrame(rec_rows).to_excel(writer, sheet_name="Рекомендации", index=False)
 
-        # Форматирование
         wb = writer.book
         for ws in wb.worksheets:
             for cell in ws[1]:
