@@ -104,14 +104,13 @@ def to_mark(v):
 def norm_topic(t: str) -> str:
     if not t:
         return ""
-    s = str(t).strip()
-    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"\s+", " ", str(t).strip())
     s = s.strip(". ,;")
     return s[:200]
 
 
 # ============================================================
-# ЧТЕНИЕ ЛИСТОВ С ОЦЕНКАМИ
+# ЧТЕНИЕ EXCEL
 # ============================================================
 def read_marks_sheets(xls):
     info = []
@@ -130,7 +129,7 @@ def read_marks_sheets(xls):
         header_row = None
         for i in range(min(len(raw), 10)):
             cell = str(raw.iloc[i, 0]).lower()
-            if any(k in cell for k in ["оқушының", "тегі", "ученик", "фио", "ф.и.о"]):
+            if any(k in cell for k in ["оқушының", "тегі", "ученик", "фио", "ф.и.о", "аты-жөні"]):
                 header_row = i
                 break
 
@@ -174,9 +173,6 @@ def read_marks_sheets(xls):
     return merged, info
 
 
-# ============================================================
-# ЧТЕНИЕ ЛИСТОВ С ТЕМАМИ
-# ============================================================
 def read_topics_sheets(xls):
     info = []
     date_to_topic = {}
@@ -190,10 +186,7 @@ def read_topics_sheets(xls):
         if raw.empty:
             continue
 
-        date_col = None
-        topic_col = None
-        head_row = None
-
+        date_col = topic_col = head_row = None
         for i in range(min(len(raw), 8)):
             row = raw.iloc[i].tolist()
             for j, c in enumerate(row):
@@ -215,8 +208,7 @@ def read_topics_sheets(xls):
             date_val = None
             for v in r.tolist():
                 s = str(v).strip()
-                m = re.match(r"^(\d{1,2})[\.\-/](\d{1,2})(?:[\.\-/](\d{2,4}))?$", s)
-                if m:
+                if re.match(r"^(\d{1,2})[\.\-/](\d{1,2})(?:[\.\-/](\d{2,4}))?$", s):
                     date_val = s
                     break
             if not date_val:
@@ -240,9 +232,6 @@ def read_topics_sheets(xls):
     return date_to_topic, info
 
 
-# ============================================================
-# ЧТЕНИЕ ФИО УЧИТЕЛЯ (лист 2, строка 1)
-# ============================================================
 def read_teacher_name(xls):
     info = []
     if len(xls.sheet_names) < 2:
@@ -260,8 +249,7 @@ def read_teacher_name(xls):
         info.append(f"Лист «{second_sheet}» пуст.")
         return "", info
 
-    first_row = raw.iloc[0].tolist()
-    for cell in first_row:
+    for cell in raw.iloc[0].tolist():
         s = str(cell).strip()
         if not s or s.lower() in ("nan", "none"):
             continue
@@ -276,9 +264,6 @@ def read_teacher_name(xls):
     return "", info
 
 
-# ============================================================
-# ЗАГРУЗКА
-# ============================================================
 @st.cache_data(show_spinner=False)
 def read_journal(file_bytes: bytes):
     xls = pd.ExcelFile(io.BytesIO(file_bytes))
@@ -289,7 +274,7 @@ def read_journal(file_bytes: bytes):
 
     info = info1 + info2 + info3
 
-    all_dates = sorted({d for marks in marks.values() for d in marks.keys()},
+    all_dates = sorted({d for m in marks.values() for d in m.keys()},
                        key=lambda x: (len(x), x))
 
     records = []
@@ -312,8 +297,7 @@ def read_journal(file_bytes: bytes):
 # АНАЛИЗ
 # ============================================================
 def analyze_student(row, date_cols, date_to_topic):
-    marks = []
-    misses = 0
+    marks, misses = [], 0
     weak_by_topic = {}
     for d in date_cols:
         v = row.get(d, "")
@@ -370,20 +354,19 @@ def recommendations_for(row, date_cols, date_to_topic):
             f"📉 Средний балл {a['avg']:.2f} — ниже порога. Требуется систематическая работа над ошибками."})
     elif a["avg"] < 7:
         recs.append({"type": "warn", "text":
-            f"📊 Средний балл {a['avg']:.2f} — удовлетворительный. Усилить работу над слабыми темами (ниже)."})
+            f"📊 Средний балл {a['avg']:.2f} — удовлетворительный. Усилить работу над слабыми темами."})
 
     if a["weak_by_topic"]:
         recs.append({"type": "header", "text": "Слабые темы (по датам с низкими оценками):"})
         for topic, marks in a["weak_by_topic"].items():
             avg_topic = sum(marks) / len(marks)
             recs.append({"type": "weak_topic",
-                         "topic": topic,
-                         "marks": marks,
+                         "topic": topic, "marks": marks,
                          "avg": round(avg_topic, 2)})
 
     if a["misses"] >= 3:
         recs.append({"type": "warn", "text":
-            f"🩺 Пропущено занятий: {a['misses']}. Необходимо отработать пропущенные темы."})
+            f"🩺 Пропущено занятий: {a['misses']}. Отработать пропущенные темы."})
 
     if not a["weak_by_topic"] and a["avg"] >= 7 and a["misses"] < 3:
         recs.append({"type": "ok", "text":
@@ -419,8 +402,10 @@ def questions_for_topic(topic):
 
 
 # ============================================================
-# UI
+# UI — ЗАГОЛОВОК И ФИО УЧИТЕЛЯ
 # ============================================================
+st.title("📘 Журнал — Алгебра — 7 Ә — 1 четверть")
+
 st.markdown("### 👩‍🏫 Учитель")
 default_teacher = st.session_state.get("teacher_name", "Жанал Серикхан")
 teacher = st.text_input("ФИО", value=default_teacher, label_visibility="collapsed")
@@ -431,22 +416,28 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("📘 Журнал — Алгебра — 7 Ә — 1 четверть")
-
-st.header("1. Загрузите Excel-файл журнала")
+# ============================================================
+# РАЗДЕЛ 1. ЗАГРУЗКА И ДАННЫЕ
+# ============================================================
+st.markdown("---")
+st.header("📥 Раздел 1. Загрузка и данные")
 st.caption(
     "Оценки — с листов «Алгебра» и «Алгебра (2)». "
     "Темы — с листов «Жанал Серикхан» и «Жанал Серикхан (2)». "
     "ФИО учителя — с листа 2 (первая строка)."
 )
+
 uploaded = st.file_uploader("Excel (.xlsx)", type=["xlsx"])
 
 if uploaded is not None:
+    st.write(f"Размер файла: {round(uploaded.size / 1024, 1)} КБ")
     with st.spinner("Читаем Excel…"):
         try:
             df, date_to_topic, teacher_name, info = read_journal(uploaded.read())
         except Exception as e:
-            st.error(f"Ошибка чтения: {e}")
+            st.error(f"Ошибка чтения: {type(e).__name__}: {e}")
+            import traceback
+            st.code(traceback.format_exc())
             df, date_to_topic, teacher_name, info = pd.DataFrame(), {}, "", []
 
     with st.expander("🩺 Что прочитано из Excel"):
@@ -460,9 +451,9 @@ if uploaded is not None:
         st.session_state["date_to_topic"] = date_to_topic
         st.session_state["teacher_name"] = teacher_name or "Жанал Серикхан"
         st.success(
-            f"✅ Загружено учеников: {len(df)}. "
+            f"✅ Учеников: {len(df)}. "
             f"Дат: {len(df.columns) - 1}. "
-            f"Тем найдено: {len(date_to_topic)}. "
+            f"Тем: {len(date_to_topic)}. "
             f"Учитель: {st.session_state['teacher_name']}."
         )
         st.rerun()
@@ -475,10 +466,25 @@ df = st.session_state["df"]
 date_to_topic = st.session_state.get("date_to_topic", {})
 date_cols = [c for c in df.columns if c != "Ученик"]
 
+st.subheader("Все оценки учеников по датам")
+st.caption("«а» — отсутствовал. Значения — оценки 1–10.")
+st.dataframe(df, use_container_width=True)
+
+with st.expander("📚 Темы по датам"):
+    if date_to_topic:
+        topic_df = pd.DataFrame(
+            [{"Дата": d, "Тема": t} for d, t in date_to_topic.items()]
+        )
+        st.dataframe(topic_df, use_container_width=True)
+    else:
+        st.info("Темы не найдены.")
+
 # ============================================================
-# ТОП ЛУЧШИХ И ОТСТАЮЩИХ
+# РАЗДЕЛ 2. АНАЛИЗ И РЕЙТИНГ
 # ============================================================
-st.header("2. Топ лучших и топ отстающих")
+st.markdown("---")
+st.header("🏆 Раздел 2. Анализ и рейтинг")
+
 best = top_best(df, date_cols, date_to_topic, 3)
 worst = top_worst(df, date_cols, date_to_topic, 3)
 
@@ -499,10 +505,7 @@ with c2:
     else:
         st.info("Нет данных")
 
-# ============================================================
-# СВОДКА
-# ============================================================
-st.header("3. Сводка по всем ученикам")
+st.subheader("Сводка по всем ученикам")
 summary = []
 for _, r in df.iterrows():
     a = analyze_student(r, date_cols, date_to_topic)
@@ -519,32 +522,16 @@ summary_df = pd.DataFrame(summary).sort_values("Средний балл", ascend
 st.dataframe(summary_df, use_container_width=True)
 
 # ============================================================
-# ВСЕ ОЦЕНКИ
+# РАЗДЕЛ 3. УЧЕНИК
 # ============================================================
-st.header("4. Все оценки учеников по датам")
-st.caption("«а» — отсутствовал. Значения — оценки 1–10.")
-st.dataframe(df, use_container_width=True)
+st.markdown("---")
+st.header("📈 Раздел 3. Ученик: график, темы, рекомендации")
 
-# ============================================================
-# ТЕМЫ ПО ДАТАМ
-# ============================================================
-with st.expander("📚 Темы по датам (из листов «Жанал Серикхан»)"):
-    if date_to_topic:
-        topic_df = pd.DataFrame(
-            [{"Дата": d, "Тема": t} for d, t in date_to_topic.items()]
-        )
-        st.dataframe(topic_df, use_container_width=True)
-    else:
-        st.info("Темы не найдены. Проверьте листы «Жанал Серикхан» и «Жанал Серикхан (2)».")
-
-# ============================================================
-# ГРАФИК
-# ============================================================
-st.header("5. График развития выбранного ученика")
-student_name = st.selectbox("Ученик", df["Ученик"].tolist())
+student_name = st.selectbox("Выберите ученика", df["Ученик"].tolist())
 row = df[df["Ученик"] == student_name].iloc[0]
 a = analyze_student(row, date_cols, date_to_topic)
 
+# График
 x_vals, y_vals, colors = [], [], []
 for d in date_cols:
     v = row.get(d, "")
@@ -585,10 +572,7 @@ st.markdown(
     f"**Слабых тем:** {len(a['weak_by_topic'])}"
 )
 
-# ============================================================
-# РЕКОМЕНДАЦИИ
-# ============================================================
-st.header("6. Рекомендации по темам")
+st.subheader("Рекомендации по темам")
 recs = recommendations_for(row, date_cols, date_to_topic)
 for rec in recs:
     if rec["type"] == "header":
@@ -622,9 +606,10 @@ for rec in recs:
         )
 
 # ============================================================
-# ЭКСПОРТ
+# РАЗДЕЛ 4. ЭКСПОРТ
 # ============================================================
-st.header("7. Экспорт и печать")
+st.markdown("---")
+st.header("📤 Раздел 4. Экспорт и печать")
 
 
 def build_excel():
@@ -654,8 +639,7 @@ def build_excel():
             )
             topics_df.to_excel(writer, sheet_name="Темы", index=False)
 
-        rec_rows = []
-        q_rows = []
+        rec_rows, q_rows = [], []
         for _, r in df.iterrows():
             for rec in recommendations_for(r, date_cols, date_to_topic):
                 if rec["type"] == "weak_topic":
@@ -667,11 +651,7 @@ def build_excel():
                         "Рекомендация": "Повторить теорию и решить 5–7 задач",
                     })
                     for q in questions_for_topic(rec["topic"]):
-                        q_rows.append({
-                            "Ученик": r["Ученик"],
-                            "Тема": rec["topic"],
-                            "Вопрос": q,
-                        })
+                        q_rows.append({"Ученик": r["Ученик"], "Тема": rec["topic"], "Вопрос": q})
                 else:
                     rec_rows.append({
                         "Ученик": r["Ученик"],
