@@ -5,7 +5,7 @@ import streamlit as st
 import plotly.graph_objects as go
 from openpyxl.styles import Font, PatternFill, Alignment
 
-st.set_page_config(page_title="Журнал — Алгебра — 7 Ә", page_icon="📘", layout="wide")
+st.set_page_config(page_title="Журнал ", page_icon="📘", layout="wide")
 
 # ============================================================
 # ВСПОМОГАТЕЛЬНОЕ
@@ -227,7 +227,7 @@ def recommendations_for(row, date_cols):
 # UI
 # ============================================================
 st.markdown("### 👩‍🏫 Учитель")
-teacher = st.text_input("ФИО", value="Жанал Серикхан", label_visibility="collapsed")
+teacher = st.text_input("ФИО", value=" ", label_visibility="collapsed")
 st.markdown(
     f"<div style='background:#e0f2fe;border-left:4px solid #0284c7;"
     f"padding:10px 14px;border-radius:8px;margin-bottom:16px'>"
@@ -235,7 +235,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("📘 Журнал — Алгебра — 7 Ә — 1 четверть")
+st.title("📘 Журнал ")
 
 # ---------- ЗАГРУЗКА EXCEL ----------
 st.header("1. Загрузите Excel-файл журнала")
