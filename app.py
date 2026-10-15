@@ -8,91 +8,26 @@ from openpyxl.styles import Font, PatternFill, Alignment
 st.set_page_config(page_title="Журнал — Алгебра — 7 Ә", page_icon="📘", layout="wide")
 
 # ============================================================
-# БАНК ВОПРОСОВ ПО ТЕМАМ
+# ВСПОМОГАТЕЛЬНОЕ
 # ============================================================
-QUESTION_BANK = {
-    "Натурал көрсеткішті дәреже": [
-        "Есептеңіз: 2⁵ · 2³.",
-        "Ықшамдаңыз: (a³)⁴ · a².",
-        "Есептеңіз: 5⁰ + (−3)².",
-        "Ықшамдаңыз: a⁷ : a⁴.",
-        "Теңдеуді шешіңіз: 2ˣ = 32.",
-    ],
-    "Бүтін көрсеткішті дәреже": [
-        "Есептеңіз: 2⁻³.",
-        "Ықшамдаңыз: (a⁻²)³ · a⁷.",
-        "Есептеңіз: (1/3)⁻².",
-        "Ықшамдаңыз: a⁻⁵ · a⁸ : a².",
-        "Теңдеуді шешіңіз: 3ˣ = 1/27.",
-    ],
-    "Санның стандарт түрі": [
-        "Жазыңыз стандарт түрде: 0,00045.",
-        "Жазыңыз стандарт түрде: 12 300 000.",
-        "Есептеңіз: (2·10³) · (3·10⁴).",
-        "Есептеңіз: (6·10⁵) : (2·10²).",
-        "Салыстырыңыз: 3·10⁻² және 4·10⁻³.",
-    ],
-    "Бірмүшелер және оларға амалдар қолдану": [
-        "Ықшамдаңыз: 3a²b · (−2ab³).",
-        "Бірмүшенің дәрежесін табыңыз: 5x³y².",
-        "Ұқсас мүшелерді біріктіріңіз: 4a + 3a − 2a.",
-        "Есептеңіз: (−2x²)³.",
-        "Бірмүшені стандарт түрге келтіріңіз: 3·a·4·a².",
-    ],
-    "Көпмүшелерге амал қолдану": [
-        "Қосыңыз: (2x² + 3x − 1) + (x² − 5x + 4).",
-        "Азайтыңыз: (5a² − 3a) − (2a² + 4a).",
-        "Көбейтіңіз: (x + 2)(x − 3).",
-        "Көбейтіңіз: (2a − b)(2a + b).",
-        "Ықшамдаңыз: (x + 3)² − x².",
-    ],
-    "Көпмүшені көбейткіштерге жіктеу": [
-        "Жіктеңіз: x² − 9.",
-        "Жіктеңіз: 4a² − 25b².",
-        "Жіктеңіз: x² + 6x + 9.",
-        "Жіктеңіз: 2x² − 8.",
-        "Жіктеңіз: a³ − b³.",
-    ],
-    "Көпмүшені көпмүшеге бөлу": [
-        "Бөліңіз: (x² − 4) : (x − 2).",
-        "Бөліңіз: (x³ + 1) : (x + 1).",
-        "Бөліңіз: (2x² + 5x − 3) : (x + 3).",
-        "Бөліңіз: (x³ − 8) : (x − 2).",
-        "Бөліңіз: (6x² − x − 2) : (2x + 1).",
-    ],
-    "Мәтінді есептерді шығару": [
-        "Екі санның қосындысы 20, көбейтіндісі 96. Сандарды табыңыз.",
-        "Тіктөртбұрыштың периметрі 30 см, ауданы 56 см². Қабырғаларын табыңыз.",
-        "Бір сан екіншісінен 3 есе артық. Қосындысы 24. Сандарды табыңыз.",
-        "Поезд 60 км/сағ жылдамдықпен 3 сағатта қанша жол жүреді?",
-        "Қоспада 20% тұз бар. 300 г қоспада қанша тұз бар?",
-    ],
-    "Құрамында дәрежесі бар өрнектерді түрлендіру": [
-        "Ықшамдаңыз: (a²b)³ · a⁻⁴b.",
-        "Ықшамдаңыз: (2x³)² : (4x⁴).",
-        "Ықшамдаңыз: (a⁻¹ + b⁻¹) · ab.",
-        "Ықшамдаңыз: (x²y⁻³)² · x⁻³y⁴.",
-        "Есептеңіз: (2³ · 2⁻⁵) : 2⁻¹.",
-    ],
-}
-
-DEFAULT_QUESTIONS = [
-    "Тақырыптың негізгі анықтамасын тұжырымдаңыз.",
-    "Тақырып бойынша типтік есеп шығарыңыз.",
-    "Тақырыпта қандай формулалар қолданылады?",
-    "Жиі жіберілетін қатені табыңыз және түсіндіріңіз.",
-    "Өз бетіңізше есеп құрастырып, шығарыңыз.",
-]
+def is_mark(v) -> bool:
+    """Проверяет, является ли значение оценкой 1–10."""
+    s = str(v).strip().lower()
+    if s in ("а", "н", ""):
+        return False
+    try:
+        n = int(float(s))
+        return 1 <= n <= 10
+    except Exception:
+        return False
 
 
-# ============================================================
-# ВСПОМОГАТЕЛЬНЫЕ
-# ============================================================
 def to_mark(v):
+    """Преобразует значение в int или в 'а' (отсутствовал) или None."""
     s = str(v).strip().lower()
     if s in ("а", "н"):
         return "а"
-    if not s or s in ("nan", "none"):
+    if not s:
         return None
     try:
         n = int(float(s))
@@ -101,215 +36,129 @@ def to_mark(v):
         return None
 
 
-def norm_topic(t: str) -> str:
-    if not t:
-        return ""
-    s = re.sub(r"\s+", " ", str(t).strip())
-    s = s.strip(". ,;")
-    return s[:200]
-
-
 # ============================================================
 # ЧТЕНИЕ EXCEL
 # ============================================================
-def read_marks_sheets(xls):
-    info = []
-    merged = {}
+@st.cache_data(show_spinner=False)
+def read_journal(file_bytes: bytes):
+    """
+    Читает все листы Excel, ищет листы с журналом (где первый столбец — ФИО)
+    и склеивает их по вертикали. Возвращает DataFrame:
+        columns = ['Ученик', '<дата1>', '<дата2>', ...]
+    """
+    xls = pd.ExcelFile(io.BytesIO(file_bytes))
+    sheet_names = xls.sheet_names
 
-    for sh in xls.sheet_names:
+    journal_frames = []
+    sheet_info = []
+
+    for sh in sheet_names:
         try:
             raw = pd.read_excel(xls, sheet_name=sh, header=None)
         except Exception as e:
-            info.append(f"Лист «{sh}»: ошибка чтения ({e})")
+            sheet_info.append(f"Лист «{sh}»: ошибка чтения ({e})")
             continue
 
         if raw.empty:
+            sheet_info.append(f"Лист «{sh}»: пустой")
             continue
 
+        # Ищем строку заголовка: где в первой ячейке есть "Оқушының" или "тегі" или "Ученик"
         header_row = None
         for i in range(min(len(raw), 10)):
             cell = str(raw.iloc[i, 0]).lower()
-            if any(k in cell for k in ["оқушының", "тегі", "ученик", "фио", "ф.и.о", "аты-жөні"]):
+            if any(k in cell for k in ["оқушының", "тегі", "ученик", "ф.и.о", "фио"]):
                 header_row = i
                 break
 
         if header_row is None:
+            sheet_info.append(f"Лист «{sh}»: не найден заголовок журнала")
             continue
 
+        # Даты — во второй строке заголовка (или в самой строке header_row)
+        # Столбец 0 — имя, столбцы 1..N — даты
         header_dates = raw.iloc[header_row].tolist()[1:]
+
+        # Читаем данные со следующей строки
         data = raw.iloc[header_row + 1:].copy()
 
+        # Оставляем только те строки, где в столбце 0 есть текст (ФИО)
         def looks_like_name(v):
             s = str(v).strip()
-            if not s or s.lower() in ("nan", "none") or len(s) < 3:
+            if not s or s.lower() in ("nan", "none"):
+                return False
+            if len(s) < 3:
                 return False
             if not re.search(r"[А-Яа-яӘәҒғҚқҢңӨөҰұҮүҺһІі]", s):
                 return False
-            if s.lower().startswith(("бжб", "тоқсан", "макс", "орта", "жиын", "сабақ")):
+            if s.lower().startswith(("бжб", "тоқсан", "макс", "орта", "жиын")):
                 return False
             return True
 
         data = data[data.iloc[:, 0].apply(looks_like_name)]
+
         if data.empty:
+            sheet_info.append(f"Лист «{sh}»: нет учеников")
             continue
 
-        added = 0
+        # Собираем оценки
+        rows = []
         for _, r in data.iterrows():
             name = str(r.iloc[0]).strip()
             values = r.tolist()[1:]
-            if name not in merged:
-                merged[name] = {}
+            marks = {}
             for date, val in zip(header_dates, values):
                 d = str(date).strip()
                 if not d or d.lower() in ("nan", "none"):
                     continue
                 m = to_mark(val)
                 if m is not None:
-                    merged[name][d] = m
-            added += 1
+                    marks[d] = m
+            rows.append({"Ученик": name, "marks": marks})
 
-        info.append(f"Лист оценок «{sh}»: учеников — {added}, дат — {len(header_dates)}")
+        journal_frames.append(rows)
+        sheet_info.append(f"Лист «{sh}»: учеников — {len(rows)}, столбцов‑дат — {len(header_dates)}")
 
-    return merged, info
+    if not journal_frames:
+        return pd.DataFrame(), sheet_info
 
+    # Склеиваем всех учеников по имени
+    merged = {}
+    for block in journal_frames:
+        for row in block:
+            name = row["Ученик"]
+            if name not in merged:
+                merged[name] = {}
+            merged[name].update(row["marks"])
 
-def read_topics_sheets(xls):
-    info = []
-    date_to_topic = {}
+    # Собираем все даты
+    all_dates = sorted({d for marks in merged.values() for d in marks.keys()})
 
-    for sh in xls.sheet_names:
-        try:
-            raw = pd.read_excel(xls, sheet_name=sh, header=None)
-        except Exception:
-            continue
-
-        if raw.empty:
-            continue
-
-        date_col = topic_col = head_row = None
-        for i in range(min(len(raw), 8)):
-            row = raw.iloc[i].tolist()
-            for j, c in enumerate(row):
-                s = str(c).lower()
-                if ("күні" in s or "айы" in s) and date_col is None:
-                    date_col = j
-                    head_row = i
-                if "тақырып" in s and topic_col is None:
-                    topic_col = j
-                    head_row = i
-            if date_col is not None and topic_col is not None:
-                break
-
-        if date_col is None and topic_col is None:
-            continue
-
-        added = 0
-        for _, r in raw.iloc[(head_row or 0) + 1:].iterrows():
-            date_val = None
-            for v in r.tolist():
-                s = str(v).strip()
-                if re.match(r"^(\d{1,2})[\.\-/](\d{1,2})(?:[\.\-/](\d{2,4}))?$", s):
-                    date_val = s
-                    break
-            if not date_val:
-                continue
-
-            topic_val = ""
-            if topic_col is not None and topic_col < len(r):
-                topic_val = str(r.iloc[topic_col]).strip()
-            if not topic_val or topic_val.lower() in ("nan", "none"):
-                if topic_col is not None and topic_col + 1 < len(r):
-                    topic_val = str(r.iloc[topic_col + 1]).strip()
-
-            topic_val = norm_topic(topic_val)
-            if topic_val:
-                date_to_topic[date_val] = topic_val
-                added += 1
-
-        if added:
-            info.append(f"Лист тем «{sh}»: пар «дата → тема» — {added}")
-
-    return date_to_topic, info
-
-
-def read_teacher_name(xls):
-    info = []
-    if len(xls.sheet_names) < 2:
-        info.append("Листов меньше 2 — ФИО учителя не найдено.")
-        return "", info
-
-    second_sheet = xls.sheet_names[1]
-    try:
-        raw = pd.read_excel(xls, sheet_name=second_sheet, header=None, nrows=3)
-    except Exception as e:
-        info.append(f"Не удалось прочитать лист «{second_sheet}»: {e}")
-        return "", info
-
-    if raw.empty:
-        info.append(f"Лист «{second_sheet}» пуст.")
-        return "", info
-
-    for cell in raw.iloc[0].tolist():
-        s = str(cell).strip()
-        if not s or s.lower() in ("nan", "none"):
-            continue
-        if re.match(
-            r"^([А-ЯЁӘҒҚҢӨҰҮҺІ][а-яёәғқңөұүһі\-]+)(\s+[А-ЯЁӘҒҚҢӨҰҮҺІ][а-яёәғқңөұүһі\-]+){1,3}$",
-            s,
-        ):
-            info.append(f"ФИО учителя найдено на листе «{second_sheet}»: {s}")
-            return s, info
-
-    info.append(f"ФИО учителя не найдено в первой строке листа «{second_sheet}».")
-    return "", info
-
-
-@st.cache_data(show_spinner=False)
-def read_journal(file_bytes: bytes):
-    xls = pd.ExcelFile(io.BytesIO(file_bytes))
-
-    marks, info1 = read_marks_sheets(xls)
-    date_to_topic, info2 = read_topics_sheets(xls)
-    teacher_name, info3 = read_teacher_name(xls)
-
-    info = info1 + info2 + info3
-
-    all_dates = sorted({d for m in marks.values() for d in m.keys()},
-                       key=lambda x: (len(x), x))
-
+    # Формируем DataFrame
     records = []
-    for name, m in marks.items():
+    for name, marks in merged.items():
         rec = {"Ученик": name}
         for d in all_dates:
-            rec[d] = m.get(d, "")
+            rec[d] = marks.get(d, "")
         records.append(rec)
 
     df = pd.DataFrame(records)
-
-    info.append(
-        f"Всего дат: {len(all_dates)}, из них с темами: "
-        f"{sum(1 for d in all_dates if d in date_to_topic)}"
-    )
-    return df, date_to_topic, teacher_name, info
+    return df, sheet_info
 
 
 # ============================================================
 # АНАЛИЗ
 # ============================================================
-def analyze_student(row, date_cols, date_to_topic):
-    marks, misses = [], 0
-    weak_by_topic = {}
+def analyze_student(row, date_cols):
+    """Возвращает avg, count, min, max, misses, weak_marks."""
+    marks = []
+    misses = 0
     for d in date_cols:
         v = row.get(d, "")
-        topic = date_to_topic.get(d, "")
         if v == "а":
             misses += 1
-            continue
-        if isinstance(v, int):
+        elif isinstance(v, int):
             marks.append(v)
-            if v <= 5:
-                key = topic or f"Дата {d}"
-                weak_by_topic.setdefault(key, []).append(v)
     avg = round(sum(marks) / len(marks), 2) if marks else 0.0
     return {
         "avg": avg,
@@ -318,97 +167,67 @@ def analyze_student(row, date_cols, date_to_topic):
         "max": max(marks) if marks else 0,
         "misses": misses,
         "marks": marks,
-        "weak_by_topic": weak_by_topic,
     }
 
 
-def top_best(df, date_cols, date_to_topic, n=3):
+def top_best(df, date_cols, n=3):
     scored = []
     for _, r in df.iterrows():
-        a = analyze_student(r, date_cols, date_to_topic)
+        a = analyze_student(r, date_cols)
         if a["count"] > 0:
             scored.append((r["Ученик"], a["avg"], a["count"]))
     scored.sort(key=lambda x: (x[1], x[2]), reverse=True)
     return scored[:n]
 
 
-def top_worst(df, date_cols, date_to_topic, n=3):
+def top_worst(df, date_cols, n=3):
     scored = []
     for _, r in df.iterrows():
-        a = analyze_student(r, date_cols, date_to_topic)
+        a = analyze_student(r, date_cols)
         if a["count"] > 0:
             scored.append((r["Ученик"], a["avg"], a["count"]))
     scored.sort(key=lambda x: (x[1], -x[2]))
     return scored[:n]
 
 
-def recommendations_for(row, date_cols, date_to_topic):
-    a = analyze_student(row, date_cols, date_to_topic)
+def recommendations_for(row, date_cols):
+    a = analyze_student(row, date_cols)
     recs = []
     if a["count"] == 0:
-        recs.append({"type": "warn", "text": "⚠ Нет ни одной оценки. Уточните причину отсутствия."})
+        recs.append("⚠ Нет ни одной оценки. Уточните причину отсутствия.")
         return recs
-
     if a["avg"] < 5:
-        recs.append({"type": "bad", "text":
-            f"📉 Средний балл {a['avg']:.2f} — ниже порога. Требуется систематическая работа над ошибками."})
+        recs.append(
+            f"📉 Средний балл {a['avg']:.2f} — ниже порога. "
+            f"Рекомендуется повторить текущие темы и выполнить дополнительные задания."
+        )
     elif a["avg"] < 7:
-        recs.append({"type": "warn", "text":
-            f"📊 Средний балл {a['avg']:.2f} — удовлетворительный. Усилить работу над слабыми темами."})
-
-    if a["weak_by_topic"]:
-        recs.append({"type": "header", "text": "Слабые темы (по датам с низкими оценками):"})
-        for topic, marks in a["weak_by_topic"].items():
-            avg_topic = sum(marks) / len(marks)
-            recs.append({"type": "weak_topic",
-                         "topic": topic, "marks": marks,
-                         "avg": round(avg_topic, 2)})
-
+        recs.append(
+            f"📊 Средний балл {a['avg']:.2f} — удовлетворительный. "
+            f"Стоит усилить работу над темами с низкими оценками."
+        )
     if a["misses"] >= 3:
-        recs.append({"type": "warn", "text":
-            f"🩺 Пропущено занятий: {a['misses']}. Отработать пропущенные темы."})
-
-    if not a["weak_by_topic"] and a["avg"] >= 7 and a["misses"] < 3:
-        recs.append({"type": "ok", "text":
-            "✅ Ученик показывает стабильные результаты. Продолжайте в том же духе!"})
-
+        recs.append(
+            f"🩺 Пропущено занятий: {a['misses']}. "
+            f"Необходимо отработать пропущенные темы по учебнику и ответить на вопросы."
+        )
+    # Считаем низкие оценки
+    low = [m for m in a["marks"] if m <= 5]
+    if low:
+        recs.append(
+            f"🔻 Низких оценок (≤5): {len(low)}. "
+            f"Рекомендуется повторить материал и сдать задолженности."
+        )
+    if not recs:
+        recs.append("✅ Ученик показывает стабильные результаты. Продолжайте в том же духе!")
     return recs
 
 
-def questions_for_topic(topic):
-    if topic in QUESTION_BANK:
-        return QUESTION_BANK[topic]
-    t = topic.lower()
-    for key, qs in QUESTION_BANK.items():
-        if key.lower() in t or t in key.lower():
-            return qs
-    if "дәреже" in t and "бүтін" in t:
-        return QUESTION_BANK["Бүтін көрсеткішті дәреже"]
-    if "дәреже" in t:
-        return QUESTION_BANK["Натурал көрсеткішті дәреже"]
-    if "стандарт" in t:
-        return QUESTION_BANK["Санның стандарт түрі"]
-    if "бірмүше" in t:
-        return QUESTION_BANK["Бірмүшелер және оларға амалдар қолдану"]
-    if "көпмүше" in t and "бөл" in t:
-        return QUESTION_BANK["Көпмүшені көпмүшеге бөлу"]
-    if "көпмүше" in t and ("жікте" in t or "көбейткіш" in t):
-        return QUESTION_BANK["Көпмүшені көбейткіштерге жіктеу"]
-    if "көпмүше" in t:
-        return QUESTION_BANK["Көпмүшелерге амал қолдану"]
-    if "мәтінді" in t or "есептер" in t:
-        return QUESTION_BANK["Мәтінді есептерді шығару"]
-    return DEFAULT_QUESTIONS
-
-
 # ============================================================
-# UI — ЗАГОЛОВОК И ФИО УЧИТЕЛЯ
+# UI
 # ============================================================
-st.title("📘 Журнал — Алгебра — 7 Ә — 1 четверть")
-
 st.markdown("### 👩‍🏫 Учитель")
-default_teacher = st.session_state.get("teacher_name", "Жанал Серикхан")
-teacher = st.text_input("ФИО", value=default_teacher, label_visibility="collapsed")
+teacher = st.text_input("ФИО", value="Жанал Серикхан", label_visibility="collapsed")
 st.markdown(
     f"<div style='background:#e0f2fe;border-left:4px solid #0284c7;"
     f"padding:10px 14px;border-radius:8px;margin-bottom:16px'>"
@@ -416,77 +235,47 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ============================================================
-# РАЗДЕЛ 1. ЗАГРУЗКА И ДАННЫЕ
-# ============================================================
-st.markdown("---")
-st.header("📥 Раздел 1. Загрузка и данные")
-st.caption(
-    "Оценки — с листов «Алгебра» и «Алгебра (2)». "
-    "Темы — с листов «Жанал Серикхан» и «Жанал Серикхан (2)». "
-    "ФИО учителя — с листа 2 (первая строка)."
-)
+st.title("📘 Журнал — Алгебра — 7 Ә — 1 четверть")
 
+# ---------- ЗАГРУЗКА EXCEL ----------
+st.header("1. Загрузите Excel-файл журнала")
+st.caption(
+    "Подойдёт файл BilimClass с листами «Алгебра», «Алгебра (2)» и т.п. "
+    "Все листы с журналом будут объединены."
+)
 uploaded = st.file_uploader("Excel (.xlsx)", type=["xlsx"])
 
 if uploaded is not None:
-    st.write(f"Размер файла: {round(uploaded.size / 1024, 1)} КБ")
     with st.spinner("Читаем Excel…"):
         try:
-            df, date_to_topic, teacher_name, info = read_journal(uploaded.read())
+            df, info = read_journal(uploaded.read())
         except Exception as e:
-            st.error(f"Ошибка чтения: {type(e).__name__}: {e}")
-            import traceback
-            st.code(traceback.format_exc())
-            df, date_to_topic, teacher_name, info = pd.DataFrame(), {}, "", []
+            st.error(f"Ошибка чтения: {e}")
+            df, info = pd.DataFrame(), []
 
     with st.expander("🩺 Что прочитано из Excel"):
         for line in info:
             st.text(line)
 
     if df.empty:
-        st.warning("⚠ Не удалось найти данные журнала.")
+        st.warning("⚠ Не удалось найти данные журнала. Проверьте, что в файле есть лист с ФИО учеников.")
     else:
         st.session_state["df"] = df
-        st.session_state["date_to_topic"] = date_to_topic
-        st.session_state["teacher_name"] = teacher_name or "Жанал Серикхан"
-        st.success(
-            f"✅ Учеников: {len(df)}. "
-            f"Дат: {len(df.columns) - 1}. "
-            f"Тем: {len(date_to_topic)}. "
-            f"Учитель: {st.session_state['teacher_name']}."
-        )
-        st.rerun()
+        st.success(f"✅ Загружено учеников: {len(df)}. Столбцов (дат): {len(df.columns) - 1}.")
 
 if "df" not in st.session_state or st.session_state["df"].empty:
     st.info("Загрузите Excel, чтобы начать анализ.")
     st.stop()
 
 df = st.session_state["df"]
-date_to_topic = st.session_state.get("date_to_topic", {})
 date_cols = [c for c in df.columns if c != "Ученик"]
 
-st.subheader("Все оценки учеников по датам")
-st.caption("«а» — отсутствовал. Значения — оценки 1–10.")
-st.dataframe(df, use_container_width=True)
-
-with st.expander("📚 Темы по датам"):
-    if date_to_topic:
-        topic_df = pd.DataFrame(
-            [{"Дата": d, "Тема": t} for d, t in date_to_topic.items()]
-        )
-        st.dataframe(topic_df, use_container_width=True)
-    else:
-        st.info("Темы не найдены.")
-
 # ============================================================
-# РАЗДЕЛ 2. АНАЛИЗ И РЕЙТИНГ
+# ТОП ЛУЧШИХ И ХУДШИХ
 # ============================================================
-st.markdown("---")
-st.header("🏆 Раздел 2. Анализ и рейтинг")
-
-best = top_best(df, date_cols, date_to_topic, 3)
-worst = top_worst(df, date_cols, date_to_topic, 3)
+st.header("2. Топ лучших и топ отстающих")
+best = top_best(df, date_cols, 3)
+worst = top_worst(df, date_cols, 3)
 
 c1, c2 = st.columns(2)
 with c1:
@@ -505,10 +294,13 @@ with c2:
     else:
         st.info("Нет данных")
 
-st.subheader("Сводка по всем ученикам")
+# ============================================================
+# СВОДКА ПО ВСЕМ УЧЕНИКАМ
+# ============================================================
+st.header("3. Сводка по всем ученикам")
 summary = []
 for _, r in df.iterrows():
-    a = analyze_student(r, date_cols, date_to_topic)
+    a = analyze_student(r, date_cols)
     summary.append({
         "Ученик": r["Ученик"],
         "Средний балл": a["avg"],
@@ -516,33 +308,41 @@ for _, r in df.iterrows():
         "Минимум": a["min"],
         "Максимум": a["max"],
         "Пропусков (а)": a["misses"],
-        "Слабых тем": len(a["weak_by_topic"]),
+        "Низких (≤5)": len([m for m in a["marks"] if m <= 5]),
     })
 summary_df = pd.DataFrame(summary).sort_values("Средний балл", ascending=False)
 st.dataframe(summary_df, use_container_width=True)
 
 # ============================================================
-# РАЗДЕЛ 3. УЧЕНИК
+# ВСЕ ОЦЕНКИ УЧЕНИКОВ (ПОЛНАЯ ТАБЛИЦА)
 # ============================================================
-st.markdown("---")
-st.header("📈 Раздел 3. Ученик: график, темы, рекомендации")
+st.header("4. Все оценки учеников по датам")
+st.caption("Показаны все оценки, которые есть в Excel. «а» — отсутствовал.")
+st.dataframe(df, use_container_width=True)
 
-student_name = st.selectbox("Выберите ученика", df["Ученик"].tolist())
+# ============================================================
+# ГРАФИК ПО УЧЕНИКУ
+# ============================================================
+st.header("5. График развития выбранного ученика")
+student_name = st.selectbox("Ученик", df["Ученик"].tolist())
 row = df[df["Ученик"] == student_name].iloc[0]
-a = analyze_student(row, date_cols, date_to_topic)
+a = analyze_student(row, date_cols)
 
-# График
-x_vals, y_vals, colors = [], [], []
+y_vals = []
+colors = []
+x_vals = []
 for d in date_cols:
     v = row.get(d, "")
-    x_vals.append(d)
     if v == "а":
+        x_vals.append(d)
         y_vals.append(None)
         colors.append("#f59e0b")
     elif isinstance(v, int):
+        x_vals.append(d)
         y_vals.append(v)
         colors.append("#16a34a" if v >= 7 else "#dc2626" if v <= 5 else "#2563eb")
     else:
+        x_vals.append(d)
         y_vals.append(None)
         colors.append("#94a3b8")
 
@@ -568,56 +368,36 @@ st.markdown(
     f"**Оценок:** {a['count']} • "
     f"**Минимум:** {a['min']} • "
     f"**Максимум:** {a['max']} • "
-    f"**Пропусков (а):** {a['misses']} • "
-    f"**Слабых тем:** {len(a['weak_by_topic'])}"
+    f"**Пропусков (а):** {a['misses']}"
 )
 
-st.subheader("Рекомендации по темам")
-recs = recommendations_for(row, date_cols, date_to_topic)
-for rec in recs:
-    if rec["type"] == "header":
-        st.markdown(f"**{rec['text']}**")
-    elif rec["type"] == "weak_topic":
-        st.markdown(
-            f"<div style='background:#fff7ed;border-left:4px solid #f97316;"
-            f"padding:10px 14px;border-radius:8px;margin:8px 0'>"
-            f"<b>Тема:</b> {rec['topic']}<br>"
-            f"<b>Оценки:</b> {', '.join(str(m) for m in rec['marks'])} "
-            f"(средний по теме: {rec['avg']})<br>"
-            f"<b>Рекомендация:</b> повторить теорию, разобрать типовые задачи, "
-            f"выполнить 5–7 упражнений по теме.</div>",
-            unsafe_allow_html=True,
-        )
-        qs = questions_for_topic(rec["topic"])
-        st.markdown(f"**Вопросы по теме «{rec['topic']}»:**")
-        for i, q in enumerate(qs, 1):
-            st.markdown(f"{i}. {q}")
-    elif rec["type"] == "ok":
-        st.markdown(
-            f"<div style='background:#ecfdf5;border-left:4px solid #10b981;"
-            f"padding:10px 14px;border-radius:8px;margin:8px 0'>{rec['text']}</div>",
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            f"<div style='background:#fff7ed;border-left:4px solid #f97316;"
-            f"padding:10px 14px;border-radius:8px;margin:8px 0'>{rec['text']}</div>",
-            unsafe_allow_html=True,
-        )
+# ============================================================
+# РЕКОМЕНДАЦИИ
+# ============================================================
+st.header("6. Рекомендации")
+for rec in recommendations_for(row, date_cols):
+    st.markdown(
+        f"<div style='background:#fff7ed;border-left:4px solid #f97316;"
+        f"padding:8px 12px;border-radius:8px;margin:4px 0'>{rec}</div>",
+        unsafe_allow_html=True,
+    )
 
 # ============================================================
-# РАЗДЕЛ 4. ЭКСПОРТ
+# ЭКСПОРТ
 # ============================================================
-st.markdown("---")
-st.header("📤 Раздел 4. Экспорт и печать")
+st.header("7. Экспорт и печать")
 
 
 def build_excel():
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        # Лист 1 — все оценки
         df.to_excel(writer, sheet_name="Все оценки", index=False)
+
+        # Лист 2 — сводка
         summary_df.to_excel(writer, sheet_name="Сводка", index=False)
 
+        # Лист 3 — Топ (устойчиво к разному числу учеников)
         n = max(len(best), len(worst), 1)
 
         def pad(lst, size):
@@ -633,40 +413,16 @@ def build_excel():
         })
         top_df.to_excel(writer, sheet_name="Топ", index=False)
 
-        if date_to_topic:
-            topics_df = pd.DataFrame(
-                [{"Дата": d, "Тема": t} for d, t in date_to_topic.items()]
-            )
-            topics_df.to_excel(writer, sheet_name="Темы", index=False)
-
-        rec_rows, q_rows = [], []
+        # Лист 4 — рекомендации
+        rec_rows = []
         for _, r in df.iterrows():
-            for rec in recommendations_for(r, date_cols, date_to_topic):
-                if rec["type"] == "weak_topic":
-                    rec_rows.append({
-                        "Ученик": r["Ученик"],
-                        "Тема": rec["topic"],
-                        "Оценки": ", ".join(str(m) for m in rec["marks"]),
-                        "Средний по теме": rec["avg"],
-                        "Рекомендация": "Повторить теорию и решить 5–7 задач",
-                    })
-                    for q in questions_for_topic(rec["topic"]):
-                        q_rows.append({"Ученик": r["Ученик"], "Тема": rec["topic"], "Вопрос": q})
-                else:
-                    rec_rows.append({
-                        "Ученик": r["Ученик"],
-                        "Тема": "",
-                        "Оценки": "",
-                        "Средний по теме": "",
-                        "Рекомендация": rec["text"],
-                    })
+            for rec in recommendations_for(r, date_cols):
+                rec_rows.append({"Ученик": r["Ученик"], "Рекомендация": rec})
         if not rec_rows:
-            rec_rows = [{"Ученик": "—", "Тема": "", "Оценки": "",
-                         "Средний по теме": "", "Рекомендация": "Нет данных"}]
+            rec_rows = [{"Ученик": "—", "Рекомендация": "Нет данных"}]
         pd.DataFrame(rec_rows).to_excel(writer, sheet_name="Рекомендации", index=False)
-        if q_rows:
-            pd.DataFrame(q_rows).to_excel(writer, sheet_name="Вопросы", index=False)
 
+        # Форматирование
         wb = writer.book
         for ws in wb.worksheets:
             for cell in ws[1]:
@@ -684,7 +440,7 @@ def build_excel():
 try:
     excel_bytes = build_excel()
     st.download_button(
-        "⬇ Скачать Excel (оценки + сводка + топ + темы + рекомендации + вопросы)",
+        "⬇ Скачать Excel (все оценки + сводка + топ + рекомендации)",
         data=excel_bytes,
         file_name="journal_algebra_7A.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
