@@ -235,7 +235,6 @@ st.caption(
     "Все листы с журналом объединяются."
 )
 
-# ---------- Кнопка сброса, если файл уже загружен ----------
 if "df" in st.session_state and not st.session_state["df"].empty:
     col_a, col_b = st.columns([3, 1])
     with col_b:
@@ -249,7 +248,6 @@ if "df" in st.session_state and not st.session_state["df"].empty:
             f"дат: {len(st.session_state['df'].columns) - 1}."
         )
 
-# ---------- Загрузчик (показываем, только если файла ещё нет) ----------
 if "df" not in st.session_state or st.session_state["df"].empty:
     uploaded = st.file_uploader("Excel (.xlsx)", type=["xlsx", "xls"])
 
@@ -286,19 +284,16 @@ if "df" not in st.session_state or st.session_state["df"].empty:
         st.stop()
 
 # ============================================================
-# ОСНОВНОЙ АНАЛИЗ — уже после успешной загрузки
+# ОСНОВНОЙ АНАЛИЗ
 # ============================================================
 df = st.session_state["df"]
 date_cols = [c for c in df.columns if c != "Ученик"]
 
-# ---------- Диагностику показываем по запросу ----------
 with st.expander("🩺 Что прочитано из Excel"):
     for line in st.session_state.get("info", []):
         st.text(line)
 
-# ============================================================
-# ТОП ЛУЧШИХ И ОТСТАЮЩИХ
-# ============================================================
+# ---------- ТОП ----------
 st.header("2. Топ лучших и топ отстающих")
 best = top_best(df, date_cols, 3)
 worst = top_worst(df, date_cols, 3)
@@ -320,9 +315,7 @@ with c2:
     else:
         st.info("Нет данных")
 
-# ============================================================
-# СВОДКА
-# ============================================================
+# ---------- СВОДКА ----------
 st.header("3. Сводка по всем ученикам")
 summary = []
 for _, r in df.iterrows():
@@ -341,16 +334,12 @@ for _, r in df.iterrows():
 summary_df = pd.DataFrame(summary).sort_values("Средний балл", ascending=False)
 st.dataframe(summary_df, use_container_width=True)
 
-# ============================================================
-# ВСЕ ОЦЕНКИ
-# ============================================================
+# ---------- ВСЕ ОЦЕНКИ ----------
 st.header("4. Все оценки учеников по датам")
 st.caption("«а» — отсутствовал. Оценки — 1–10.")
 st.dataframe(df, use_container_width=True)
 
-# ============================================================
-# ГРАФИК
-# ============================================================
+# ---------- ГРАФИК ----------
 st.header("5. График развития выбранного ученика")
 student_name = st.selectbox("Ученик", df["Ученик"].tolist())
 row = df[df["Ученик"] == student_name].iloc[0]
@@ -417,9 +406,7 @@ st.markdown(
     f"**Пропусков (а):** {a['misses']}"
 )
 
-# ============================================================
-# РЕКОМЕНДАЦИИ
-# ============================================================
+# ---------- РЕКОМЕНДАЦИИ ----------
 st.header("6. Рекомендации")
 for rec in recommendations_for(row, date_cols):
     st.markdown(
@@ -429,9 +416,165 @@ for rec in recommendations_for(row, date_cols):
     )
 
 # ============================================================
-# ЭКСПОРТ
+# АНАЛИТИЧЕСКИЙ ОТЧЁТ ПО КЛАССУ
 # ============================================================
-st.header("7. Экспорт и печать")
+st.header("7. Аналитический отчёт по классу")
+
+# --- Общие показатели ---
+class_avgs = [analyze_student(r, date_cols)["avg"] for _, r in df.iterrows()]
+class_avgs = [x for x in class_avgs if x > 0]
+class_avg = round(sum(class_avgs) / len(class_avgs), 2) if class_avgs else 0.0
+
+quality_list = [analyze_student(r, date_cols)["quality_pct"] for _, r in df.iterrows()]
+progress_list = [analyze_student(r, date_cols)["progress_pct"] for _, r in df.iterrows()]
+class_quality = round(sum(quality_list) / len(quality_list), 1) if quality_list else 0.0
+class_progress = round(sum(progress_list) / len(progress_list), 1) if progress_list else 0.0
+
+total_misses = sum(analyze_student(r, date_cols)["misses"] for _, r in df.iterrows())
+low_marks_total = sum(
+    len([m for m in analyze_student(r, date_cols)["marks"] if m <= 5])
+    for _, r in df.iterrows()
+)
+total_marks = sum(analyze_student(r, date_cols)["count"] for _, r in df.iterrows())
+
+st.markdown(
+    f"""
+**Класс:** {teacher} — 7 Ә — 1 четверть
+**Учеников:** {len(df)}
+**Всего выставленных оценок:** {total_marks}
+**Пропусков (а):** {total_misses}
+**Средний балл по классу:** {class_avg}
+**Білім сапасы (класс):** {class_quality}%
+**Үлгерім (класс):** {class_progress}%
+**Низких оценок (≤5):** {low_marks_total}
+"""
+)
+
+# --- Разбивка по уровням ---
+st.subheader("Распределение по уровням успеваемости")
+
+levels = {"7–10 (жоғары)": 0, "4–6 (орта)": 0, "1–3 (төмен)": 0}
+for _, r in df.iterrows():
+    a = analyze_student(r, date_cols)
+    if not a["marks"]:
+        continue
+    if a["avg"] >= 7:
+        levels["7–10 (жоғары)"] += 1
+    elif a["avg"] >= 4:
+        levels["4–6 (орта)"] += 1
+    else:
+        levels["1–3 (төмен)"] += 1
+
+for k, v in levels.items():
+    st.markdown(f"- **{k}:** {v} учеников")
+
+# --- Топ и отстающие ещё раз для отчёта ---
+st.subheader("Рейтинг")
+if best:
+    st.markdown("**Лучшие:**")
+    for i, (name, avg, cnt) in enumerate(best, 1):
+        st.markdown(f"{i}. {name} — средний балл {avg:.2f} (оценок: {cnt})")
+
+if worst:
+    st.markdown("**Требуют внимания:**")
+    for i, (name, avg, cnt) in enumerate(worst, 1):
+        st.markdown(f"{i}. {name} — средний балл {avg:.2f} (оценок: {cnt})")
+
+# --- Ученики с низкими показателями ---
+st.subheader("Ученики с низкими показателями")
+low_students = []
+for _, r in df.iterrows():
+    a = analyze_student(r, date_cols)
+    if a["count"] > 0 and (a["avg"] < 5 or a["quality_pct"] < 50 or a["misses"] >= 3):
+        low_students.append((r["Ученик"], a["avg"], a["quality_pct"], a["progress_pct"], a["misses"]))
+
+if low_students:
+    low_df = pd.DataFrame(
+        low_students,
+        columns=["Ученик", "Средний балл", "Білім сапасы %", "Үлгерім %", "Пропусков"],
+    )
+    st.dataframe(low_df, use_container_width=True)
+else:
+    st.success("Учеников с критически низкими показателями нет.")
+
+# --- Рекомендации по классу ---
+st.subheader("Рекомендации по классу")
+class_recs = []
+if class_quality < 50:
+    class_recs.append("📉 Білім сапасы ниже 50% — рекомендуется усилить работу над темами с низкими оценками.")
+if class_progress < 90:
+    class_recs.append("⚠ Үлгерім ниже 90% — обратите внимание на неуспевающих учеников.")
+if total_misses > len(df) * 2:
+    class_recs.append("🩺 Много пропусков — отработать пропущенные темы индивидуально.")
+if low_marks_total > total_marks * 0.2:
+    class_recs.append("🔻 Более 20% низких оценок — провести повторение материала.")
+if not class_recs:
+    class_recs.append("✅ Показатели класса в норме. Продолжайте в том же духе.")
+
+for rec in class_recs:
+    st.markdown(
+        f"<div style='background:#fff7ed;border-left:4px solid #f97316;"
+        f"padding:8px 12px;border-radius:8px;margin:4px 0'>{rec}</div>",
+        unsafe_allow_html=True,
+    )
+
+# ============================================================
+# ПРОМПТ ДЛЯ ДАЛЬНЕЙШИХ РАБОТ
+# ============================================================
+st.header("8. Готовый промпт для дальнейших работ")
+
+st.caption(
+    "Скопируйте текст ниже и вставьте его в новую сессию при работе с ИИ — "
+    "это даст полный контекст проекта и ускорит доработку."
+)
+
+prompt_text = f"""Проект: Streamlit-приложение «Журнал — Алгебра — 7 Ә — 1 четверть».
+
+Назначение:
+- загрузка Excel-файла журнала BilimClass (несколько листов);
+- чтение оценок с листов типа «Алгебра», «Алгебра (2)»;
+- чтение тем — с листов «Жанал Серикхан», «Жанал Серикхан (2)»;
+- чтение ФИО учителя — с листа № 2, первая строка;
+- расчёт среднего балла, Білім сапасы (%) и Үлгерім (%) по каждому ученику;
+- график развития по датам (Plotly);
+- топ‑3 лучших и топ‑3 отстающих;
+- рекомендации по слабым оценкам и пропускам («а»);
+- аналитический отчёт по классу;
+- экспорт в Excel: Все оценки, Сводка, Топ, Рекомендации;
+- печать через Ctrl+P.
+
+Текущий файл: журнал за 1 четверть, оценки 1–10, буква «а» — отсутствовал.
+Текущий учитель: {teacher}
+Всего учеников в файле: {len(df)}
+Всего дат (столбцов): {len(date_cols)}
+
+Что нужно доработать:
+1. Связать даты с темами из листов «Жанал Серикхан» и выдавать рекомендации по конкретным темам.
+2. По каждой слабой теме — 5 вопросов для отработки (банк уже частично есть).
+3. Сохранение отчёта в PDF с шапкой школы.
+4. Возможность загрузить несколько четвертей и показать годовую динамику.
+5. Автоматическая рассылка отчёта родителям (по email из отдельного файла).
+
+Требования к коду:
+- Python 3.11+, Streamlit, pandas, openpyxl, plotly;
+- без OCR (только текстовый слой Excel);
+- стиль кода — с русскими комментариями и разбивкой на функции;
+- не удалять существующую функциональность, только добавлять.
+"""
+
+st.code(prompt_text, language="text")
+
+st.download_button(
+    "⬇ Скачать промпт (.txt)",
+    data=prompt_text.encode("utf-8"),
+    file_name="prompt_journal.txt",
+    mime="text/plain",
+)
+
+# ============================================================
+# ЭКСПОРТ EXCEL
+# ============================================================
+st.header("9. Экспорт и печать")
 
 
 def build_excel():
