@@ -110,20 +110,14 @@ def norm_topic(t: str) -> str:
     return s[:200]
 
 
-def is_topic_sheet_header(s: str) -> bool:
-    s = str(s).lower()
-    return "күні" in s or "айы" in s or "тақырып" in s
-
-
 # ============================================================
-# ЧТЕНИЕ ЛИСТОВ С ОЦЕНКАМИ (1 и 3)
+# ЧТЕНИЕ ЛИСТОВ С ОЦЕНКАМИ
 # ============================================================
 def read_marks_sheets(xls):
-    sheet_names = xls.sheet_names
     info = []
     merged = {}
 
-    for sh in sheet_names:
+    for sh in xls.sheet_names:
         try:
             raw = pd.read_excel(xls, sheet_name=sh, header=None)
         except Exception as e:
@@ -181,14 +175,13 @@ def read_marks_sheets(xls):
 
 
 # ============================================================
-# ЧТЕНИЕ ЛИСТОВ С ТЕМАМИ (2 и 4)
+# ЧТЕНИЕ ЛИСТОВ С ТЕМАМИ
 # ============================================================
 def read_topics_sheets(xls):
-    sheet_names = xls.sheet_names
     info = []
     date_to_topic = {}
 
-    for sh in sheet_names:
+    for sh in xls.sheet_names:
         try:
             raw = pd.read_excel(xls, sheet_name=sh, header=None)
         except Exception:
@@ -197,7 +190,6 @@ def read_topics_sheets(xls):
         if raw.empty:
             continue
 
-        # Ищем столбцы «Күні» и «Тақырыптар»
         date_col = None
         topic_col = None
         head_row = None
@@ -221,7 +213,6 @@ def read_topics_sheets(xls):
         added = 0
         for _, r in raw.iloc[(head_row or 0) + 1:].iterrows():
             date_val = None
-            # дату ищем в любой ячейке строки
             for v in r.tolist():
                 s = str(v).strip()
                 m = re.match(r"^(\d{1,2})[\.\-/](\d{1,2})(?:[\.\-/](\d{2,4}))?$", s)
@@ -595,7 +586,7 @@ st.markdown(
 )
 
 # ============================================================
-# РЕКОМЕНДАЦИИ (с темами)
+# РЕКОМЕНДАЦИИ
 # ============================================================
 st.header("6. Рекомендации по темам")
 recs = recommendations_for(row, date_cols, date_to_topic)
@@ -716,4 +707,9 @@ try:
         "⬇ Скачать Excel (оценки + сводка + топ + темы + рекомендации + вопросы)",
         data=excel_bytes,
         file_name="journal_algebra_7A.xlsx",
-        mime="application/vnd.open
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+except Exception as e:
+    st.error(f"Ошибка формирования Excel: {e}")
+
+st.markdown("🖨 **Печать:** `Ctrl+P` в браузере.")
